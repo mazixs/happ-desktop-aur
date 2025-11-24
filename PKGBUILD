@@ -2,7 +2,7 @@
 # Telegram: @xizam
 pkgname=happ-desktop
 pkgver=1.0.2
-pkgrel=3
+pkgrel=4
 pkgdesc="Happ VPN Desktop Client with TUN interface support (native installation)"
 arch=('x86_64')
 url="https://github.com/mazixs/happ-desktop-aur"
@@ -16,9 +16,11 @@ depends=(
     'openssl'
     'libcap'
 )
+provides=("${pkgname}")
+conflicts=("${pkgname}")
 install="${pkgname}.install"
 source=("Happ.linux.x86.AppImage::file://${PWD}/Happ.linux.x86.AppImage")
-sha256sums=('SKIP')
+sha256sums=('0b0209d918b69c3c70cb1e62098cba2c409d45a59383510248b348277d6bf440')
 noextract=("Happ.linux.x86.AppImage")
 
 prepare() {
@@ -32,59 +34,60 @@ prepare() {
 package() {
     cd "${srcdir}/squashfs-root"
     
-    # Сохраняем структуру как в AppImage: bin/Happ + bin/tun/ + bin/core/
-    # Это необходимо для правильного поиска VPN ядер приложением
+    # 1. Подготовка директорий
+    install -d "${pkgdir}/opt/happ"
+    install -d "${pkgdir}/usr/bin"
+    install -d "${pkgdir}/usr/share/applications"
+    install -d "${pkgdir}/usr/share/pixmaps"
     
-    # Установка основного исполняемого файла
-    install -Dm755 usr/bin/Happ "${pkgdir}/opt/happ/bin/Happ"
-    
-    # Установка VPN ядер (sing-box и xray) - им нужны capabilities
-    install -Dm755 usr/bin/tun/sing-box "${pkgdir}/opt/happ/bin/tun/sing-box"
-    install -Dm644 usr/bin/tun/LICENSE "${pkgdir}/opt/happ/bin/tun/LICENSE"
-    
-    install -Dm755 usr/bin/core/xray "${pkgdir}/opt/happ/bin/core/xray"
-    install -Dm644 usr/bin/core/LICENSE "${pkgdir}/opt/happ/bin/core/LICENSE"
-    install -Dm644 usr/bin/core/README.md "${pkgdir}/opt/happ/bin/core/README.md"
-    install -Dm644 usr/bin/core/geoip.dat "${pkgdir}/opt/happ/bin/core/geoip.dat"
-    install -Dm644 usr/bin/core/geosite.dat "${pkgdir}/opt/happ/bin/core/geosite.dat"
-    
-    # Установка antifilter
-    install -Dm755 usr/bin/antifilter/antifilter "${pkgdir}/opt/happ/bin/antifilter/antifilter"
-    
-    # Установка qt.conf
-    install -Dm644 usr/bin/qt.conf "${pkgdir}/opt/happ/bin/qt.conf"
-    
-    # Установка bundled библиотек Qt5 (необходимы для ABI совместимости)
+    # 2. Массовое копирование ресурсов (bin, lib, plugins, qml, translations)
+    # Копируем все нужные папки рекурсивно, сохраняя структуру
+    cp -r usr/bin "${pkgdir}/opt/happ/"
     cp -r usr/lib "${pkgdir}/opt/happ/"
-    
-    # Установка plugins
     cp -r usr/plugins "${pkgdir}/opt/happ/"
-    
-    # Установка QML модулей
     cp -r usr/qml "${pkgdir}/opt/happ/"
+    cp -r usr/translations "${pkgdir}/opt/happ/"
     
-    # Замена проблемного bundled плагина QtGraphicalEffects на системный
+    # Исправление прав доступа для исполняемых файлов
+    chmod 755 "${pkgdir}/opt/happ/bin/Happ"
+    chmod 755 "${pkgdir}/opt/happ/bin/tun/sing-box"
+    chmod 755 "${pkgdir}/opt/happ/bin/core/xray"
+    chmod 755 "${pkgdir}/opt/happ/bin/antifilter/antifilter"
+
+    # 3. WORKAROUND: Конфликт QtGraphicalEffects
+    # Bundled библиотека конфликтует с системным окружением Arch Linux.
+    # Заменяем её на системную (требует зависимости qt5-graphicaleffects).
+    msg2 "Applying QtGraphicalEffects workaround..."
     rm -f "${pkgdir}/opt/happ/qml/QtGraphicalEffects/private/libqtgraphicaleffectsprivate.so"
     install -Dm755 /usr/lib/qt/qml/QtGraphicalEffects/private/libqtgraphicaleffectsprivate.so \
         "${pkgdir}/opt/happ/qml/QtGraphicalEffects/private/libqtgraphicaleffectsprivate.so"
     
-    # Установка переводов
-    cp -r usr/translations "${pkgdir}/opt/happ/"
-    
-    # Установка иконки
+    # 4. Установка qt.conf (если он нужен для переопределения путей внутри бинарника)
+    # Обычно лежит в usr/bin/qt.conf в AppImage
+    if [ -f usr/bin/qt.conf ]; then
+        install -Dm644 usr/bin/qt.conf "${pkgdir}/opt/happ/bin/qt.conf"
+    fi
+
+    # 5. Интеграция (Desktop файл и иконка)
+    # Ищем иконку и desktop файл в корне squashfs-root
     install -Dm644 happ.png "${pkgdir}/usr/share/pixmaps/happ.png"
-    
-    # Установка desktop файла
     install -Dm644 Happ.desktop "${pkgdir}/usr/share/applications/happ.desktop"
     
-    # Обновление путей в desktop файле
-    sed -i 's|Exec=/opt/happ/Happ %f|Exec=/opt/happ/Happ %f|g' \
-        "${pkgdir}/usr/share/applications/happ.desktop"
-    sed -i 's|Icon=happ|Icon=/usr/share/pixmaps/happ.png|g' \
-        "${pkgdir}/usr/share/applications/happ.desktop"
+    # Исправление путей в desktop файле
+    # ВАЖНО: Запускаем через wrapper /usr/bin/happ, а не напрямую!
+    # Удаляем %f, так как VPN клиент вряд ли открывает файлы через аргументы
+    sed -i 's|^Exec=.*|Exec=/usr/bin/happ|' "${pkgdir}/usr/share/applications/happ.desktop"
+    sed -i 's|^Icon=.*|Icon=happ|' "${pkgdir}/usr/share/applications/happ.desktop"
     
-    # Создание wrapper скрипта для настройки окружения Qt
-    mkdir -p "${pkgdir}/usr/bin"
+    # Добавляем/Исправляем StartupWMClass для корректной работы иконки в Wayland/Gnome
+    if grep -q "StartupWMClass" "${pkgdir}/usr/share/applications/happ.desktop"; then
+        sed -i 's|^StartupWMClass=.*|StartupWMClass=Happ|' "${pkgdir}/usr/share/applications/happ.desktop"
+    else
+        echo "StartupWMClass=Happ" >> "${pkgdir}/usr/share/applications/happ.desktop"
+    fi
+    
+    # 6. Создание wrapper скрипта
+    # Настраивает LD_LIBRARY_PATH и пути к QML/плагинам перед запуском
     cat > "${pkgdir}/usr/bin/happ" <<'EOF'
 #!/bin/bash
 # Используем bundled Qt библиотеки + фикс QtGraphicalEffects
@@ -92,6 +95,12 @@ export LD_LIBRARY_PATH="/opt/happ/lib:${LD_LIBRARY_PATH}"
 export QT_PLUGIN_PATH="/opt/happ/plugins:${QT_PLUGIN_PATH}"
 # Используем ТОЛЬКО bundled QML, системный путь НЕ добавляем (конфликт Qt версий)
 export QML2_IMPORT_PATH="/opt/happ/qml:${QML2_IMPORT_PATH}"
+
+# ПРИНУДИТЕЛЬНО используем xcb (X11) backend.
+# Это предотвращает краши на Wayland, если в AppImage нет wayland-плагинов,
+# и решает проблемы с декорированием окон.
+export QT_QPA_PLATFORM=xcb
+
 exec /opt/happ/bin/Happ "$@"
 EOF
     chmod +x "${pkgdir}/usr/bin/happ"
