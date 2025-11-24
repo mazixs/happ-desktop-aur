@@ -6,7 +6,6 @@ pkg/
 *.log
 
 # AppImage
-*.AppImage
 squashfs-root/
 
 # Временные файлы
