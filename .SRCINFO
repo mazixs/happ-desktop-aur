@@ -1,0 +1,20 @@
+pkgbase = happ-desktop
+	pkgdesc = Happ VPN Desktop Client with TUN interface support (native installation)
+	pkgver = 1.0.2
+	pkgrel = 3
+	url = https://github.com/mazixs/happ-desktop-aur
+	install = happ-desktop.install
+	arch = x86_64
+	license = unknown
+	depends = qt5-base
+	depends = qt5-svg
+	depends = qt5-declarative
+	depends = qt5-graphicaleffects
+	depends = qt5-quickcontrols2
+	depends = openssl
+	depends = libcap
+	noextract = Happ.linux.x86.AppImage
+	source = Happ.linux.x86.AppImage::file:///home/mazix/Документы/GitHub/happ-desktop-aur/Happ.linux.x86.AppImage
+	sha256sums = SKIP
+
+pkgname = happ-desktop

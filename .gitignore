@@ -1,0 +1,15 @@
+# Makepkg
+src/
+pkg/
+*.pkg.tar.zst
+*.pkg.tar.xz
+*.log
+
+# AppImage
+*.AppImage
+squashfs-root/
+
+# Временные файлы
+*.tmp
+*~
+.*.swp

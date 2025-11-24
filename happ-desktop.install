@@ -1,0 +1,50 @@
+post_install() {
+    echo "Настройка capabilities для VPN ядер..."
+    
+    # Установка cap_net_admin для sing-box (необходимо для создания TUN интерфейса)
+    if [ -f /opt/happ/bin/tun/sing-box ]; then
+        setcap 'cap_net_admin+ep' /opt/happ/bin/tun/sing-box
+        echo "  ✓ cap_net_admin установлен для /opt/happ/bin/tun/sing-box"
+    fi
+    
+    # Установка cap_net_admin для xray (необходимо для создания TUN интерфейса)
+    if [ -f /opt/happ/bin/core/xray ]; then
+        setcap 'cap_net_admin+ep' /opt/happ/bin/core/xray
+        echo "  ✓ cap_net_admin установлен для /opt/happ/bin/core/xray"
+    fi
+    
+    echo ""
+    echo "Happ Desktop успешно установлен!"
+    echo ""
+    echo "ВАЖНО:"
+    echo "  - Приложение может создавать TUN интерфейсы благодаря cap_net_admin"
+    echo "  - Запуск: happ (из терминала) или через меню приложений"
+    echo "  - Исполняемые файлы:"
+    echo "    • GUI: /opt/happ/bin/Happ"
+    echo "    • sing-box: /opt/happ/bin/tun/sing-box"
+    echo "    • xray: /opt/happ/bin/core/xray"
+    echo ""
+    echo "Проверка capabilities:"
+    echo "  getcap /opt/happ/bin/tun/sing-box"
+    echo "  getcap /opt/happ/bin/core/xray"
+    echo ""
+}
+
+post_upgrade() {
+    post_install
+}
+
+pre_remove() {
+    echo "Удаление capabilities..."
+    
+    # Удаление capabilities перед удалением пакета (опционально)
+    if [ -f /opt/happ/bin/tun/sing-box ]; then
+        setcap -r /opt/happ/bin/tun/sing-box 2>/dev/null || true
+        echo "  ✓ cap_net_admin удален для sing-box"
+    fi
+    
+    if [ -f /opt/happ/bin/core/xray ]; then
+        setcap -r /opt/happ/bin/core/xray 2>/dev/null || true
+        echo "  ✓ cap_net_admin удален для xray"
+    fi
+}

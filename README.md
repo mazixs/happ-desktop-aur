@@ -1,23 +1,224 @@
-# Happ - Proxy Utility
+# Happ Desktop AUR Package
 
-| iOS                                                                        | Android                                                                                                | Desktop                                                                                                         |
-| -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| [App Store](https://apps.apple.com/us/app/happ-proxy-utility/id6504287215) | [Google Play](https://play.google.com/store/apps/details?id=com.happproxy)                             | [Windows](https://github.com/Happ-proxy/happ-desktop/releases/download/1.0.1/setup-Happ.x86.exe)        |
-| [Testflight](https://testflight.apple.com/join/XMls6Ckd)                   | [Download APK](https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ.apk)           | [macOS(arm64/intel)](https://github.com/Happ-proxy/happ-desktop/releases/download/1.0.1/Happ.macOS.universal.dmg)|
-|                                                                            | [Download Beta APK](https://github.com/Happ-proxy/happ-android/releases/latest/download/Happ_beta.apk) | [Linux](https://github.com/Happ-proxy/happ-desktop/releases/download/1.0.1/Happ.linux.x86.AppImage) |
+Нативный пакет Happ VPN Desktop для Arch Linux с поддержкой создания TUN интерфейсов.
 
-Happ is a mobile application designed for convenient proxy server management, powered by the robust Xray core. The app features an intuitive interface and a range of useful functions, making it an essential tool for managing connections.
+## 🎯 Основная проблема и решение
 
-**Key features of Happ include:**
+**Проблема**: AppImage не может создать TUN интерфейс из-за отсутствия `cap_net_admin` capabilities.
 
-* Configuration of proxy servers based on flexible routing rules.
-* Support for multiple modern protocols, including:
-  * **VLESS (Reality)**
-  * **VMess**
-  * **Trojan**
-  * **Shadowsocks**
-  * **Socks**
+**Решение**: Нативная установка с автоматической настройкой `cap_net_admin+ep` для VPN ядер:
+- `/opt/happ/tun/sing-box` - современное VPN ядро
+- `/opt/happ/core/xray` - альтернативное VPN ядро
 
-Happ ensures your network activity remains private by not collecting any data; your information remains solely on your device without being sent to external servers.
+## 📥 Получение AppImage
 
-It's important to highlight that Happ does not provide VPN services for purchase. Users are responsible for acquiring or setting up their own servers. Users should also comply with applicable laws in their jurisdiction when utilizing the app.
+**Важно**: Для сборки требуется файл `Happ.linux.x86.AppImage` (~76 MB).
+
+Поместите его в корень репозитория перед сборкой:
+```bash
+# Если у вас уже есть AppImage
+cp /путь/к/Happ.linux.x86.AppImage ./
+
+# Или скачайте с официального источника
+# (добавьте ссылку на источник, если доступен)
+```
+
+**Примечание**: AppImage файл не включен в git репозиторий из-за размера.
+
+## 📦 Установка
+
+### Вариант 1: Локальная сборка
+
+```bash
+# Клонирование репозитория
+git clone https://github.com/mazixs/happ-desktop-aur.git
+cd happ-desktop-aur
+
+# Поместите Happ.linux.x86.AppImage в директорию (см. секцию выше)
+
+# Сборка и установка
+makepkg -si
+```
+
+### Вариант 2: AUR Helper
+
+```bash
+# С yay
+yay -S happ-desktop
+
+# С paru
+paru -S happ-desktop
+```
+
+## ✅ Проверка установки
+
+После установки проверьте, что capabilities установлены:
+
+```bash
+# Проверка sing-box
+getcap /opt/happ/tun/sing-box
+# Ожидаемый вывод: /opt/happ/tun/sing-box cap_net_admin=ep
+
+# Проверка xray
+getcap /opt/happ/core/xray
+# Ожидаемый вывод: /opt/happ/core/xray cap_net_admin=ep
+```
+
+## 🚀 Запуск
+
+```bash
+# Из терминала
+happ
+
+# Или через меню приложений
+# Application Menu → Utility → Happ
+```
+
+## 🏗️ Структура установки
+
+```
+/opt/happ/
+├── Happ                    # Основное GUI приложение (Qt5)
+├── bin/                    # Симлинки для совместимости
+│   ├── Happ
+│   ├── sing-box
+│   ├── xray
+│   └── antifilter
+├── tun/
+│   ├── sing-box           # VPN ядро с cap_net_admin
+│   └── LICENSE
+├── core/
+│   ├── xray               # VPN ядро с cap_net_admin
+│   ├── geoip.dat
+│   ├── geosite.dat
+│   ├── LICENSE
+│   └── README.md
+├── antifilter/
+│   └── antifilter
+├── lib/                    # Qt5 и зависимости
+├── plugins/                # Qt5 плагины
+├── qml/                    # QML модули
+├── translations/           # Переводы
+└── qt.conf
+
+/usr/bin/happ              # Wrapper скрипт с настройкой окружения
+/usr/share/applications/happ.desktop
+/usr/share/pixmaps/happ.png
+```
+
+## 🔧 Технические детали
+
+### Capabilities
+
+`cap_net_admin` позволяет непривилегированным процессам:
+- Создавать и настраивать TUN/TAP интерфейсы
+- Управлять сетевыми интерфейсами
+- Изменять таблицы маршрутизации (в ограниченном объеме)
+
+**Безопасность**: Capabilities устанавливаются только на конкретные исполняемые файлы (`sing-box` и `xray`), а не на всё приложение.
+
+### Зависимости
+
+**Runtime**:
+- `qt5-base` - Qt5 Core, GUI, Widgets
+- `qt5-svg` - поддержка SVG
+- `qt5-declarative` - QML/QtQuick
+- `openssl` - криптография
+- `libcap` - управление capabilities
+
+**Build**:
+- `base-devel` (для makepkg)
+
+### VPN ядра
+
+- **sing-box** (~44 MB) - современное универсальное VPN ядро
+- **xray** (~34 MB) - форк v2ray с расширенной функциональностью
+- Оба статически слинкованы и не требуют дополнительных библиотек
+
+## 🐛 Решение проблем
+
+### Приложение не запускается
+
+```bash
+# Проверка зависимостей
+ldd /opt/happ/Happ | grep "not found"
+
+# Запуск с отладкой
+QT_DEBUG_PLUGINS=1 /opt/happ/Happ
+```
+
+### TUN интерфейс не создается
+
+```bash
+# Проверка capabilities
+getcap /opt/happ/tun/sing-box
+getcap /opt/happ/core/xray
+
+# Переустановка capabilities вручную
+sudo setcap 'cap_net_admin+ep' /opt/happ/tun/sing-box
+sudo setcap 'cap_net_admin+ep' /opt/happ/core/xray
+
+# Проверка модуля tun
+lsmod | grep tun
+# Если пусто, загрузите модуль:
+sudo modprobe tun
+```
+
+### Проверка работы TUN
+
+```bash
+# После запуска VPN проверьте интерфейсы
+ip link show | grep tun
+ip addr show
+
+# Или
+ifconfig -a | grep tun
+```
+
+## 📋 Обновление
+
+```bash
+# Скачайте новый AppImage
+# Обновите pkgver в PKGBUILD
+
+# Пересоберите
+makepkg -si --force
+```
+
+## 🗑️ Удаление
+
+```bash
+sudo pacman -R happ-desktop
+```
+
+Capabilities автоматически удаляются при деинсталляции.
+
+## 📋 Changelog
+
+### 1.0.2
+- Обновлен бинарник Happ (новая версия upstream)
+- Сохранены все capabilities и фиксы
+- Гибридный подход Qt: bundled библиотеки + системный QtGraphicalEffects
+
+### 1.0.0
+- Нативная установка из AppImage
+- Автоматическая настройка `cap_net_admin` для sing-box и xray
+- Wrapper скрипт для правильной настройки окружения
+- Полная интеграция с системой (desktop файл, иконка)
+- Исправление QtGraphicalEffects через симлинк на системный плагин
+
+## 🤝 Вклад
+
+Issues и Pull Requests приветствуются!
+
+## 📄 Лицензия
+
+Лицензии компонентов:
+- sing-box: см. `/opt/happ/tun/LICENSE`
+- xray: см. `/opt/happ/core/LICENSE`
+
+## 🔗 Ссылки
+
+- [sing-box](https://github.com/SagerNet/sing-box)
+- [Xray](https://github.com/XTLS/Xray-core)
+- [Linux Capabilities](https://man7.org/linux/man-pages/man7/capabilities.7.html)
